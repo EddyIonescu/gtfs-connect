@@ -1,0 +1,50 @@
+﻿route_id,agency_id,route_short_name,route_long_name,route_type,route_color,route_text_color
+01190419-ST,GO,ST,Stouffville,2,794500,FFFFFF
+01190419-RH,GO,RH,Richmond Hill,2,0099c7,FFFFFF
+01190419-MI,GO,MI,Milton,2,f57f25,FFFFFF
+01190419-LW,GO,LW,Lakeshore West,2,98002e,FFFFFF
+01190419-LE,GO,LE,Lakeshore East,2,ff0d00,FFFFFF
+01190419-GT,GO,KI,Kitchener,2,00853e,FFFFFF
+01190419-BR,GO,BR,Barrie,2,003767,FFFFFF
+01190419-96,GO,96,Oshawa Hwy 401 Service,3,ff0d00,FFFFFF
+01190419-93,GO,93,UOIT/Durham College Hwy 401 Express Ser,3,ff0d00,FFFFFF
+01190419-92,GO,92,Oshawa / Yorkdale,3,ff0d00,FFFFFF
+01190419-91,GO,91,Newcastle Hwy 401 Express Train Meet Service,3,ff0d00,FFFFFF
+01190419-90,GO,90,Newcastle Hwy 2 Train Meet Service,3,ff0d00,FFFFFF
+01190419-88,GO,88,Peterborough Hwy 115 Train Meet Service,3,ff0d00,FFFFFF
+01190419-81,GO,81,Beaverton Hwy 12 Train Meet Service,3,ff0d00,FFFFFF
+01190419-71,GO,71,Stouffville Train-Bus Service,3,794500,FFFFFF
+01190419-70,GO,70,Stouffville Train Meet Bus Service,3,794500,FFFFFF
+01190419-68,GO,68,Barrie Yonge St Service,3,003767,FFFFFF
+01190419-67,GO,67,Finch GO / Glenwoods,3,003767,FFFFFF
+01190419-66,GO,66,Newmarket Hwy 400 Service,3,003767,FFFFFF
+01190419-65,GO,65,Newmarket Train-Bus Service,3,003767,FFFFFF
+01190419-63,GO,63,King City Train-Bus Service,3,003767,FFFFFF
+01190419-61,GO,61,Richmond Hill Train-Bus Service,3,0099c7,FFFFFF
+01190419-54,GO,54,Mount Joy Hwy 407 Service,3,6f298d,FFFFFF
+01190419-52,GO,52,Oshawa Hwy 407 Service,3,6f298d,FFFFFF
+01190419-51,GO,51,Pickering Hwy 407 Service,3,6f298d,FFFFFF
+01190419-48,GO,48,Guelph Hwy 407 Service,3,a21984,FFFFFF
+01190419-47,GO,47,Hamilton Hwy 407 Service,3,a21984,FFFFFF
+01190419-46,GO,46,Oakville Hwy 407 Service,3,a21984,FFFFFF
+01190419-45,GO,45,Streetsville Hwy 407 Service,3,a21984,FFFFFF
+01190419-40,GO,40,Hamilton - Richmond Hill Service,3,a11984,FFFFFF
+01190419-38,GO,38,Bolton Service,3,00853e,FFFFFF
+01190419-37,GO,37,Orangeville Train Meet Service,3,00853e,FFFFFF
+01190419-36,GO,36,Brampton via Hwy 427 Express Service,3,00853e,FFFFFF
+01190419-34,GO,34,Pearson / North York Service,3,00853e,FFFFFF
+01190419-33,GO,33,Guelph Hwy 410 Service,3,00853e,FFFFFF
+01190419-32,GO,32,Brampton Hwy 407 Service,3,00853e,FFFFFF
+01190419-31,GO,31,Georgetown Train-Bus Service,3,00853e,FFFFFF
+01190419-30,GO,30,Kitchener / Bramalea,3,00853e,FFFFFF
+01190419-29,GO,29,University of Guelph,3,00853e,FFFFFF
+01190419-27,GO,27,Milton Hwy 401 Service,3,f57f25,000000
+01190419-25,GO,25,Waterloo Hwy 401 Service,3,f57f25,000000
+01190419-24,GO,24,Cambridge / Milton,3,f57f25,000000
+01190419-21,GO,21,Milton Train-Bus Service,3,f57f25,000000
+01190419-20,GO,20,Milton Lakeshore West Train Meet Service,3,f57f25,000000
+01190419-19,GO,19,Mississauga/North York,3,f57f25,000000
+01190419-18,GO,18,Hamilton Train Meet Service,3,98002e,FFFFFF
+01190419-16,GO,16,Hamilton QEW Express Service,3,98002e,FFFFFF
+01190419-15,GO,15,Brantford,3,98002e,FFFFFF
+01190419-12,GO,12,Niagara Falls Train Meet Service,3,98002e,FFFFFF
