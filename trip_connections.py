@@ -16,17 +16,17 @@ inpaths = [
     'GO',
     'YRT',
     'TTC',
-    'Barrie',
-    'Brampton',
-    'Burlington',
+    'Barrie Transit',
+    'Brampton Transit',
+    'Burlington Transit',
     'DRT',
     'GRT',
-    'Guelph',
+    'Guelph Transit',
     'HSR',
-    'Milton',
+    'Milton Transit',
     'MiWay',
-    'Niagara',
-    'Oakville',
+    'Niagara Falls Transit',
+    'Oakville Transit',
 ]
 
 def get_feed_df(inpath):
@@ -237,6 +237,7 @@ def get_local_msp_connections(
         validate='many_to_one',
     )
     nearby_stop_times_df.reset_index(inplace=True)
+    # TODO - make trip_id unique
 
     nearby_stop_times_df.set_index(['agency', 'route_id'], inplace=True)
     nearby_stop_times_df = nearby_stop_times_df.merge(
