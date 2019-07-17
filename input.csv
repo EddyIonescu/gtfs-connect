@@ -1,5 +1,5 @@
 ﻿Use Inputs Directory,TRUE
-Station Names (enter full name: eg. Gormley GO),Rutherford GO
+Station Names (enter full name: eg. Gormley GO),Allandale Waterfront GO
 Corridor Routes (enter route ID. ie. RH for Richmond Hill Line. or 61 for the 61 GO bus (all branches)),BR
 Stop Radius (metres),400
 Min Inbound Transfer (min),5

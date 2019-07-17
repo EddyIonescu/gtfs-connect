@@ -45,6 +45,11 @@ def add_agency_col(df, agency, id_fields):
     #    df[id_field] = df[id_field].apply(lambda id : agency + ' ' + id)
     return df
 
+def fill_in_stop_times(df):
+    # Barrie Transit doesn't put in arrival/departure times for untimed points, so
+    # simply copy the timing point one forward
+    return df.fillna(method='ffill') # forward-fill
+
 def get_agency_short_name(feed_df):
     agency_short_name = ''
     if 'agency_id' in feed_df.agency:
@@ -76,11 +81,11 @@ def initialize_feeds():
     trips_df.set_index(['agency', 'trip_id'], inplace=True)
     global stop_times_df
     stop_times_df = pd.concat(
-        [add_agency_col(
+        [fill_in_stop_times(add_agency_col(
             feed_df.stop_times,
             get_agency_short_name(feed_df),
             ['stop_id', 'trip_id'],
-        ) for feed_df in feed_dfs],
+        )) for feed_df in feed_dfs],
         ignore_index=True,
         join='inner',
     )
@@ -124,10 +129,11 @@ def read_input_file(inputreader):
 # now turn it into the readable format with inbound/outbound/both fields
 # result also used as a unique ID for arrivals returned
 def get_stop_time_route_stop(row):
-    trip_name = row['trip_headsign'] or row['trip_short_name']
+    trip_name = str(row['trip_headsign']) or str(row['trip_short_name'])
     # always needed for new rows format
     route_id = str(row['route_short_name']) # + ' ' if str(row['route_short_name']) not in trip_name else ''
-    return row['agency'] + '_' + str(route_id) + '_' + trip_name + ' at ' + row['stop_name']
+    # place spaces since these parts could be empty strings - strip leading/trailing whitespace when outputting to workbook
+    return str(row['agency']) + ' &gtfstoken& ' + str(route_id) + ' &gtfstoken& '  + trip_name + ' at ' + str(row['stop_name'])
 
 
 def is_corridor_stop_time(stop_time, station_stops, corridor_route_ids):
@@ -207,6 +213,7 @@ def get_local_msp_connections(
         # station doesn't exist, return empty
         return ([], [], station_name)
 
+    # TODO - optimize this part, takes ages, everythins else is fast
     stops_df['connection_distance'] = stops_df.apply(
         # use minimum distance to any stop matching the station name
         lambda stop_df : min([haversine(
@@ -230,6 +237,13 @@ def get_local_msp_connections(
     nearby_stop_times_df.reset_index(inplace=True)
 
     nearby_stop_times_df.set_index(['agency', 'trip_id'], inplace=True)
+    # only keep trip arrival closest to station, as one route could have
+    # multiple stops close to a GO station
+    nearby_stop_times_df = nearby_stop_times_df.sort_values(
+        by=['connection_distance'],
+    ).groupby(
+        by=['agency', 'trip_id'],
+    ).first()
     nearby_stop_times_df = nearby_stop_times_df.merge(
         trips_df,
         left_index=True,
@@ -237,7 +251,6 @@ def get_local_msp_connections(
         validate='many_to_one',
     )
     nearby_stop_times_df.reset_index(inplace=True)
-    # TODO - make trip_id unique
 
     nearby_stop_times_df.set_index(['agency', 'route_id'], inplace=True)
     nearby_stop_times_df = nearby_stop_times_df.merge(
@@ -332,6 +345,7 @@ def get_local_msp_connections(
     )
     return (header, connection_dicts, station_name)
 
+# DEPRECATED - TODO - REMOVE
 # each column is a route/pattern/stop, each row is an arrival/departure
 def output_workbook(workbook_name, connections):
     workbook = xlsxwriter.Workbook('./output/'+workbook_name+'.xlsx')
@@ -363,7 +377,6 @@ def output_workbook(workbook_name, connections):
             for k, v in connection_dict.items():
                 worksheet.write(row, headers.index(k), v, cell_format)
             row += 1
-        
     workbook.close()
 
 # each column is agency, route, pattern, stop; eachrow is an arrival/departure
@@ -417,11 +430,12 @@ def output_workbook_rows(workbook_name, connections):
                 if k == 'Departure Time':
                     worksheet.write(row, 1, v, cell_format)
                     continue
-                sections = k.split('_')
-                agency = sections[0]
-                route = sections[1]
-                direction = sections[2].split(' at ')[0]
-                stop = sections[2].split(' at ')[1]
+                print(k)
+                sections = k.split('&gtfstoken&')
+                agency = sections[0].strip()
+                route = sections[1].strip()
+                direction = sections[2].split(' at ')[0].strip()
+                stop = sections[2].split(' at ')[1].strip()
                 if corridor:
                     worksheet.write(row, 2, 'Corridor', cell_format)
                 elif both:
@@ -457,7 +471,7 @@ with open('input.csv', newline='') as csvfile:
             max_outbound_minutes=input_dict['max_outbound_minutes'],
         ) for station_name in input_dict['station_names']]
         # write each connection_df as an excel sheet in a workbook
-        output_workbook('msp_connections', connections)
+        # output_workbook('msp_connections', connections)
         output_workbook_rows('msp_connections', connections)
 
 if use_inputs_dir == 'TRUE':
@@ -480,5 +494,5 @@ if use_inputs_dir == 'TRUE':
             ) for station_name in input_dict['station_names']]
             # write each connection_df as an excel sheet in a workbook
             # with the name input_file (with an xslx extension)
-            output_workbook(workbook_name, connections)
+            # output_workbook(workbook_name, connections)
             output_workbook_rows(workbook_name, connections)
