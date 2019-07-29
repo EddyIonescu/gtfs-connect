@@ -1,7 +1,0 @@
-Station Names (enter full name: eg. Gormley GO),Kipling GO,Dixie GO,Cooksville GO,Erindale GO,Streetsville GO,Meadowvale GO,Lisgar GO,Milton GO
-Corridor Routes (enter route ID. ie. RH for Richmond Hill Line. or 61 for the 61 GO bus (all branches)),MI,,,,,,,
-Stop Radius (metres),400,,,,,,,
-Min Inbound Transfer (min),5,,,,,,,
-Max Inbound Transfer (min),15,,,,,,,
-Min Outbound Transfer (min),5,,,,,,,
-Max Outbound Transfer (min),15,,,,,,,
