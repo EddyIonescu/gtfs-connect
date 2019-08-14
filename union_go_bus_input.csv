@@ -1,0 +1,9 @@
+﻿Use Inputs Directory,TRUE,,,,,,,,
+Station Names (enter full name: eg. Gormley GO),Union Station Bus Terminal,,,,,,,,
+Corridor Routes (enter route ID. ie. RH for Richmond Hill Line. or 61 for the 61 GO bus (all branches)),16,18,21,31,61,63,65,71,90
+Stop Radius (metres),0,,,,,,,,
+Min Inbound Transfer (min),5,,,,,,,,
+Max Inbound Transfer (min),15,,,,,,,,
+Min Outbound Transfer (min),5,,,,,,,,
+Max Outbound Transfer (min),15,,,,,,,,
+Hourly Summary,TRUE,,,,,,,,
