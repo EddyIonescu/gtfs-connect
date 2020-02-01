@@ -1,0 +1,11 @@
+{
+  "connection_max_distance": 400,
+  "min_inbound_minutes": 5,
+  "max_inbound_minutes": 15,
+  "min_outbound_minutes": 5,
+  "max_outbound_minutes": 15,
+  "only_show_corridors": false,
+  "hourly_summary": false,
+  "input_path": "cat_input",
+  "union_station_is_inbound": true
+}

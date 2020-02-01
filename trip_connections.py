@@ -21,7 +21,7 @@ inpaths = [
     'GRT',
     'Guelph Transit',
     'HSR',
-    'Milton Transit',
+    #'Milton Transit',
     'MiWay',
     'Niagara Falls Transit',
     'Oakville Transit',
@@ -55,7 +55,7 @@ def get_agency_short_name(feed_df):
     return agency_short_name
 
 def initialize_feeds():
-    feed_dfs = [get_feed_df('gtfs_winter_2019/'+inpath+'.zip') for inpath in inpaths]
+    feed_dfs = [get_feed_df('gtfs/'+inpath+'.zip') for inpath in inpaths]
     global stops_df
     stops_df = pd.concat([
         add_agency_col(
@@ -172,19 +172,25 @@ def get_stop_time_meeting_types(
     min_outbound_minutes,
     max_outbound_minutes,
     hourly_summary,
+    union_station_is_inbound,
 ):
     """Using the supplied inbound/outbound transfer limits, determines whether each transit trip
     corresponds to a Corridor trip, an Inbound connection (to a corridor), an Outbound connection
     (from a corridor), Both, or None.
     Note that the list must be reversed when the direction is Inbound
 
+    Call first with Outbound, then with Inbound (with the reversed list)
+
     :param direction: one of Inbound or Outbound
     """
     recentmost_corridor_arrival_time = 0
+    recentmost_corridor_direction = ''
     def set_meeting_type(row):
         nonlocal recentmost_corridor_arrival_time
+        nonlocal recentmost_corridor_direction
         if is_corridor_stop_time(row, station_stops, corridor_route_ids): 
             recentmost_corridor_arrival_time = row['arrival_time']
+            recentmost_corridor_direction = row['trip_headsign']
             if hourly_summary:
                 row[get_stop_time_route_stop(row)] = get_hour_of_time(row['arrival_time_hhmm'])
                 return row
@@ -194,12 +200,22 @@ def get_stop_time_meeting_types(
         if direction == 'outbound' and outbound_transfer_min >= min_outbound_minutes and outbound_transfer_min <= max_outbound_minutes:
             row[get_stop_time_route_stop(row)] = 'Outbound' 
         if direction == 'inbound' and inbound_transfer_min >= min_inbound_minutes and inbound_transfer_min <= max_inbound_minutes:
-            if row[get_stop_time_route_stop(row)] == 'Outbound':
-                row[get_stop_time_route_stop(row)] = 'Both'
+            if row[get_stop_time_route_stop(row)].split('-')[0] == 'Outbound':
+                row[get_stop_time_route_stop(row)] = \
+                    row[get_stop_time_route_stop(row)].replace('Outbound', 'Both', 1) # Outbound-Outbound -> Both-Outbound in case union_station_is_inbound flag is true
             else:
                 row[get_stop_time_route_stop(row)] = 'Inbound'
         if get_stop_time_route_stop(row) not in row:
             row[get_stop_time_route_stop(row)] = 'None'
+            return row
+        if union_station_is_inbound:
+            if 'Union Station' in recentmost_corridor_direction:
+                if '-' not in row[get_stop_time_route_stop(row)]:
+                    row[get_stop_time_route_stop(row)] += '-Inbound'
+                elif row[get_stop_time_route_stop(row)].split('-')[1] == 'Outbound':
+                    row[get_stop_time_route_stop(row)] = row[get_stop_time_route_stop(row)].split('-')[0] + '-Both'
+            else:
+                row[get_stop_time_route_stop(row)] += '-Outbound' 
         return row
     return nearby_stop_times_df.apply(
         set_meeting_type,
@@ -219,6 +235,7 @@ def get_local_msp_connections(
     only_show_corridors,
     hourly_summary,
     location_overrides,
+    union_station_is_inbound,
 ):
     station_stops = stops_df.loc[stops_df['stop_name'] == station_name]
     if len(station_stops) == 0:
@@ -310,6 +327,7 @@ def get_local_msp_connections(
         min_outbound_minutes,
         max_outbound_minutes,
         hourly_summary,
+        union_station_is_inbound,
     )
     nearby_stop_times_df = get_stop_time_meeting_types(
         nearby_stop_times_df[::-1],
@@ -321,6 +339,7 @@ def get_local_msp_connections(
         min_outbound_minutes,
         max_outbound_minutes,
         hourly_summary,
+        union_station_is_inbound,
     )
     nearby_stop_times_df = nearby_stop_times_df[::-1]
     if only_show_corridors:
@@ -369,7 +388,7 @@ def get_local_msp_connections(
 # each column is agency, route, pattern, stop; eachrow is an arrival/departure
 # advantage is that it's much easier to filter in excel for stops with
 # many different routes
-def output_workbook(connections):
+def output_workbook(connections, union_station_is_inbound):
     workbook = xlsxwriter.Workbook('./output/transit_connections.xlsx')
     cell_format = workbook.add_format()
     cell_format.set_text_wrap()
@@ -385,26 +404,47 @@ def output_workbook(connections):
         for connection_dict in connection_dicts:
             cell_format = workbook.add_format()
             cell_format.set_text_wrap()
-            # TODO - this is so messy pls fix
             inbound = False
             outbound = False
             both = False
             corridor = False
+            peak_inbound = False # bus to station, with train to union
+            peak_outbound = False # bus from station, with train from union
             for connection in list(connection_dict.values()):
-                if connection == 'Inbound':
+                _connection = connection.split('-')[0]
+                if len(connection.split('-')) > 1:
+                    _corridor_direction = connection.split('-')[1]
+                if _connection == 'Inbound':
                     inbound = True
-                if connection == 'Outbound':
+                    if _corridor_direction == 'Inbound' or _corridor_direction == 'Both':
+                        peak_inbound = True
+                if _connection == 'Outbound':
                     outbound = True
-                if connection == 'Both':
+                    if _corridor_direction == 'Outbound' or _corridor_direction == 'Both':
+                        peak_outbound = True
+                if _connection == 'Both':
                     both = True
-                if connection == 'Corridor':
+                    if _corridor_direction == 'Inbound' or _corridor_direction == 'Both':
+                        peak_inbound = True
+                    if _corridor_direction == 'Outbound' or _corridor_direction == 'Both':
+                        peak_outbound = True
+                if _connection == 'Corridor':
                     corridor = True
             highlight_blue = False
             highlight_green = False
+            # highlight_green means it's a peak connection; blue means corridor connection
             if (inbound or both) and connection_dict['Arrival Time'] < '12:00':
-                highlight_green = True
+                if union_station_is_inbound:
+                    if peak_inbound:
+                        highlight_green = True
+                else:
+                    highlight_green = True
             if (outbound or both) and connection_dict['Departure Time'] >= '12:00':
-                highlight_green = True
+                if union_station_is_inbound:
+                    if peak_outbound:
+                        highlight_green = True
+                else:
+                    highlight_green = True
             if corridor:
                 highlight_blue = True
             if highlight_green:
@@ -432,7 +472,8 @@ def output_workbook(connections):
                 elif outbound:
                     worksheet.write(row, 2, 'Outbound', cell_format)
                 else:
-                    worksheet.write(row, 2, connection, cell_format)
+                    worksheet.write(row, 2, 'None', cell_format)
+                # cannot change this ordering since CAT dashboard hardcodes column letter
                 worksheet.write(row, 3, agency, cell_format)
                 worksheet.write(row, 4, route, cell_format)
                 worksheet.write(row, 5, direction, cell_format)
@@ -460,7 +501,11 @@ for (station_name, corridors) in stations.items():
             only_show_corridors=input_dict['only_show_corridors'],
             hourly_summary=input_dict['hourly_summary'],
             location_overrides=location_overrides.get(station_name, []),
+            union_station_is_inbound=input_dict.get('union_station_is_inbound', False),
         )
         station_connections.append(connections)
 # write each connection_df as an excel sheet in a workbook having all stations
-output_workbook(station_connections)
+output_workbook(
+    station_connections,
+    union_station_is_inbound=input_dict.get('union_station_is_inbound', False),
+)
