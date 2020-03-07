@@ -30,6 +30,7 @@ inpaths = [
 def get_feed_df(inpath):
     print(inpath)
     _date, service_ids = ptg.read_busiest_date(inpath)
+    print("Selected date for", inpath, ":", _date)
     # assume it'll be a typical weekday; GO rail is the same every weekday
     view = {
         'trips.txt': {'service_id': service_ids},
@@ -86,6 +87,22 @@ def initialize_feeds():
         join='inner',
     )
     stop_times_df.set_index(['agency', 'stop_id'], inplace=True)
+
+    # convert times to readable format
+    def seconds_to_clocktime(time):
+        return format(int(time // 3600), '02') + ':' + format(int((time % 3600) // 60), '02')
+    stop_times_df['arrival_time_hhmm'] = stop_times_df['arrival_time'].apply(seconds_to_clocktime)
+    stop_times_df['departure_time_hhmm'] = stop_times_df['departure_time'].apply(seconds_to_clocktime)
+
+    # add stops list ({stop_code};dep_time,...), needed by catviz
+    trips_df = stop_times_df.reset_index().groupby(['agency', 'trip_id']).agg({
+        'stop_id': lambda stop_id : tuple(stop_id),
+        'departure_time_hhmm': lambda stop_dep_time : tuple(stop_dep_time), 
+    }).merge(trips_df, left_index=True, right_index=True, validate='one_to_one').rename(columns={
+        'stop_id': 'trip_stops',
+        'departure_time_hhmm': 'trip_stop_departure_times',
+    })
+
     global routes_df
     routes_df = pd.concat([
         add_agency_col(
@@ -164,7 +181,6 @@ def is_corridor_stop_time(stop_time, station_stops, corridor_route_ids):
 
 def get_stop_time_meeting_types(
     nearby_stop_times_df,
-    direction,
     station_stops,
     corridor_route_ids,
     min_inbound_minutes,
@@ -172,51 +188,76 @@ def get_stop_time_meeting_types(
     min_outbound_minutes,
     max_outbound_minutes,
     hourly_summary,
-    union_station_is_inbound,
+    union_station_is_inbound=False,
 ):
     """Using the supplied inbound/outbound transfer limits, determines whether each transit trip
     corresponds to a Corridor trip, an Inbound connection (to a corridor), an Outbound connection
     (from a corridor), Both, or None.
-    Note that the list must be reversed when the direction is Inbound
 
-    Call first with Outbound, then with Inbound (with the reversed list)
+    If union_station_is_inbound is set to true, then the connection type has a second section,
+    the addition of -{connection_type} for inbound corridor trips only.
 
-    :param direction: one of Inbound or Outbound
+    Returns connection_type, with -peak_connection_type appended if it is not None
     """
-    recentmost_corridor_arrival_time = 0
-    recentmost_corridor_direction = ''
-    def set_meeting_type(row):
-        nonlocal recentmost_corridor_arrival_time
-        nonlocal recentmost_corridor_direction
+    corridor_arrival_by_direction = {}
+    def set_corridors(row):
+        """Populates corridor_arrival_by_direction and sets the connection type to
+        corridor if applicable"""
         if is_corridor_stop_time(row, station_stops, corridor_route_ids): 
-            recentmost_corridor_arrival_time = row['arrival_time']
-            recentmost_corridor_direction = row['trip_headsign']
+            corridor_arrival_time = row['arrival_time']
+            corridor_direction = row['trip_headsign']
+            if corridor_direction not in corridor_arrival_by_direction:
+                corridor_arrival_by_direction[corridor_direction] = []
+            corridor_arrival_by_direction[corridor_direction].append(corridor_arrival_time)
             if hourly_summary:
                 row[get_stop_time_route_stop(row)] = get_hour_of_time(row['arrival_time_hhmm'])
                 return row
             row[get_stop_time_route_stop(row)] = 'Corridor'
-        outbound_transfer_min = (row['departure_time'] - recentmost_corridor_arrival_time) // 60
-        inbound_transfer_min = (recentmost_corridor_arrival_time - row['departure_time']) // 60
-        if direction == 'outbound' and outbound_transfer_min >= min_outbound_minutes and outbound_transfer_min <= max_outbound_minutes:
-            row[get_stop_time_route_stop(row)] = 'Outbound' 
-        if direction == 'inbound' and inbound_transfer_min >= min_inbound_minutes and inbound_transfer_min <= max_inbound_minutes:
-            if row[get_stop_time_route_stop(row)].split('-')[0] == 'Outbound':
-                row[get_stop_time_route_stop(row)] = \
-                    row[get_stop_time_route_stop(row)].replace('Outbound', 'Both', 1) # Outbound-Outbound -> Both-Outbound in case union_station_is_inbound flag is true
-            else:
-                row[get_stop_time_route_stop(row)] = 'Inbound'
-        if get_stop_time_route_stop(row) not in row:
-            row[get_stop_time_route_stop(row)] = 'None'
-            return row
-        if union_station_is_inbound:
-            if 'Union Station' in recentmost_corridor_direction:
-                if '-' not in row[get_stop_time_route_stop(row)]:
-                    row[get_stop_time_route_stop(row)] += '-Inbound'
-                elif row[get_stop_time_route_stop(row)].split('-')[1] == 'Outbound':
-                    row[get_stop_time_route_stop(row)] = row[get_stop_time_route_stop(row)].split('-')[0] + '-Both'
-            else:
-                row[get_stop_time_route_stop(row)] += '-Outbound' 
         return row
+
+    def set_meeting_type(row):
+        if row.get(get_stop_time_route_stop(row)) == 'Corridor':
+            return row
+
+        nonlocal corridor_arrival_by_direction
+
+        def has_connection(arrival_time, is_outbound, union_station_is_inbound=False):
+            """Given the arrival time of a local route, verifies whether it has an inbound
+            or outbound (based on argument) connection to the corridor, comparing only to inbound
+            corridor arrivals if union_station_is_inbound is set to true."""
+            for corridor_direction in corridor_arrival_by_direction:
+                if union_station_is_inbound and 'Union Station' not in corridor_direction:
+                    continue
+                for corridor_arrival in corridor_arrival_by_direction[corridor_direction]:
+                    outbound_transfer = (arrival_time - corridor_arrival) // 60
+                    inbound_transfer = (corridor_arrival - arrival_time) // 60
+                    if is_outbound and outbound_transfer <= max_outbound_minutes and outbound_transfer >= min_outbound_minutes:
+                        return True
+                    if not is_outbound and inbound_transfer <= max_inbound_minutes and inbound_transfer >= min_inbound_minutes:
+                        return True
+            return False
+
+        connection_type = 'None'
+        departure_time = row['departure_time']
+        if has_connection(departure_time, False):
+            connection_type = 'Inbound'
+        if has_connection(departure_time, True):
+            connection_type = 'Both' if connection_type == 'Inbound' else 'Outbound'
+
+        peak_connection_type = 'None'
+        if has_connection(departure_time, False, True):
+            peak_connection_type = 'Inbound'
+        if has_connection(departure_time, True, True):
+            peak_connection_type = 'Both' if peak_connection_type == 'Inbound' else 'Outbound'
+
+        peak_connection_type = f'-{peak_connection_type}' if peak_connection_type != 'None' else ''
+        row[get_stop_time_route_stop(row)] = connection_type + peak_connection_type
+        return row
+
+    nearby_stop_times_df = nearby_stop_times_df.apply(
+        set_corridors,
+        axis=1,
+    )
     return nearby_stop_times_df.apply(
         set_meeting_type,
         axis=1,
@@ -301,12 +342,6 @@ def get_local_msp_connections(
     nearby_stop_times_df.reset_index(inplace=True)
     print(nearby_stop_times_df.head())
 
-    # convert times to readable format
-    def seconds_to_clocktime(time):
-        return format(int(time // 3600), '02') + ':' + format(int((time % 3600) // 60), '02')
-
-    nearby_stop_times_df['arrival_time_hhmm'] = nearby_stop_times_df['arrival_time'].apply(seconds_to_clocktime)
-    nearby_stop_times_df['departure_time_hhmm'] = nearby_stop_times_df['departure_time'].apply(seconds_to_clocktime)
     nearby_stop_times_df = nearby_stop_times_df.sort_values(['arrival_time_hhmm', 'departure_time_hhmm'])
     print('Transit at Station:', nearby_stop_times_df)
     # output dev file
@@ -319,7 +354,6 @@ def get_local_msp_connections(
     # identify whether arrivals/departures are inbound/outbound/both/none
     nearby_stop_times_df = get_stop_time_meeting_types(
         nearby_stop_times_df,
-        'outbound',
         station_stops,
         corridor_route_ids,
         min_inbound_minutes,
@@ -329,19 +363,6 @@ def get_local_msp_connections(
         hourly_summary,
         union_station_is_inbound,
     )
-    nearby_stop_times_df = get_stop_time_meeting_types(
-        nearby_stop_times_df[::-1],
-        'inbound',
-        station_stops,
-        corridor_route_ids,
-        min_inbound_minutes,
-        max_inbound_minutes,
-        min_outbound_minutes,
-        max_outbound_minutes,
-        hourly_summary,
-        union_station_is_inbound,
-    )
-    nearby_stop_times_df = nearby_stop_times_df[::-1]
     if only_show_corridors:
         nearby_stop_times_df = nearby_stop_times_df[nearby_stop_times_df.apply(
             lambda row : is_corridor_stop_time(row, station_stops, corridor_route_ids),
@@ -412,6 +433,7 @@ def output_workbook(connections, union_station_is_inbound):
             peak_outbound = False # bus from station, with train from union
             for connection in list(connection_dict.values()):
                 _connection = connection.split('-')[0]
+                _corridor_direction = None
                 if len(connection.split('-')) > 1:
                     _corridor_direction = connection.split('-')[1]
                 if _connection == 'Inbound':
