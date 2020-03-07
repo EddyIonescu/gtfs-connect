@@ -219,6 +219,15 @@ def get_stop_time_meeting_types(
         if row.get(get_stop_time_route_stop(row)) == 'Corridor':
             return row
 
+        # Skip Inbound if stop is the trip's first (ie. departing at the bus loop)
+        skip_inbound = False
+        if row['stop_sequence'] == 1:
+            skip_inbound = True
+        # Skip Outbound if the stop is the trip's last (ie. arriving at the bus loop)
+        skip_outbound = False
+        if row['stop_sequence'] == len(row['trip_stops']):
+            skip_outbound = True
+
         nonlocal corridor_arrival_by_direction
 
         def has_connection(arrival_time, is_outbound, union_station_is_inbound=False):
@@ -239,15 +248,15 @@ def get_stop_time_meeting_types(
 
         connection_type = 'None'
         departure_time = row['departure_time']
-        if has_connection(departure_time, False):
+        if not skip_inbound and has_connection(departure_time, False):
             connection_type = 'Inbound'
-        if has_connection(departure_time, True):
+        if not skip_outbound and has_connection(departure_time, True):
             connection_type = 'Both' if connection_type == 'Inbound' else 'Outbound'
 
         peak_connection_type = 'None'
-        if has_connection(departure_time, False, True):
+        if not skip_inbound and has_connection(departure_time, False, True):
             peak_connection_type = 'Inbound'
-        if has_connection(departure_time, True, True):
+        if not skip_outbound and has_connection(departure_time, True, True):
             peak_connection_type = 'Both' if peak_connection_type == 'Inbound' else 'Outbound'
 
         peak_connection_type = f'-{peak_connection_type}' if peak_connection_type != 'None' else ''
