@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import os
 import xlsxwriter
+import datetime
 
 
 # This script gets all MSP arrivals and departures that occur near a GO station, organized by Stop ID.
@@ -27,9 +28,28 @@ inpaths = [
     'Oakville Transit',
 ]
 
-def get_feed_df(inpath):
+def get_feed_df(inpath, _date=None):
+    """Gets the feed from the given GTFS and optional date, if the date is not
+    given then the busiest day in the GTFS feed is used.
+    Returns the GTFS loaded in a dataframe, or None if there is no
+    service on the given date"""
     print(inpath)
-    _date, service_ids = ptg.read_busiest_date(inpath)
+    if _date is None:
+        _date, service_ids = ptg.read_busiest_date(inpath)
+    service_ids_by_date = ptg.read_service_ids_by_date(inpath)
+    service_ids = service_ids_by_date.get(_date)
+    if service_ids is None:
+        print('No service found for', inpath, 'on', _date)
+        print((
+            'Ensure that the GTFS in the gtfs directory includes the provided date, '
+            'and that the agency operates service on the provided date.'
+        ))
+        input((
+            'You can skip this agency if you are sure they provide '
+            'no service on the given date, press ENTER to continue, '
+            'or press CTRL-C to quit.'
+        ))
+        return None
     print("Selected date for", inpath, ":", _date)
     # assume it'll be a typical weekday; GO rail is the same every weekday
     view = {
@@ -55,8 +75,15 @@ def get_agency_short_name(feed_df):
         agency_short_name = feed_df.agency.agency_name.head(1).item()
     return agency_short_name
 
-def initialize_feeds():
-    feed_dfs = [get_feed_df('gtfs/'+inpath+'.zip') for inpath in inpaths]
+def initialize_feeds(date_str=None):
+    _date = None
+    if date_str is not None:
+        _date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+    feed_dfs = []
+    for inpath in inpaths:
+        feed_df = get_feed_df('gtfs/'+inpath+'.zip', _date)
+        if feed_df is not None:
+            feed_dfs.append(feed_df)
     global stops_df
     stops_df = pd.concat([
         add_agency_col(
@@ -90,6 +117,8 @@ def initialize_feeds():
 
     # convert times to readable format
     def seconds_to_clocktime(time):
+        # TTC GTFS has seconds for some reason - round down to the minute, also done in
+        # the has_connection function
         return format(int(time // 3600), '02') + ':' + format(int((time % 3600) // 60), '02')
     stop_times_df['arrival_time_hhmm'] = stop_times_df['arrival_time'].apply(seconds_to_clocktime)
     stop_times_df['departure_time_hhmm'] = stop_times_df['departure_time'].apply(seconds_to_clocktime)
@@ -235,11 +264,13 @@ def get_stop_time_meeting_types(
             or outbound (based on argument) connection to the corridor, comparing only to inbound
             corridor arrivals if union_station_is_inbound is set to true."""
             for corridor_direction in corridor_arrival_by_direction:
-                if union_station_is_inbound and 'Union Station' not in corridor_direction:
+                if union_station_is_inbound and 'Union Station' not in corridor_direction and arrival_time < 60*60*12: # 12:00
+                    continue
+                if union_station_is_inbound and 'Union Station' in corridor_direction and arrival_time >= 60*60*12:
                     continue
                 for corridor_arrival in corridor_arrival_by_direction[corridor_direction]:
-                    outbound_transfer = (arrival_time - corridor_arrival) // 60
-                    inbound_transfer = (corridor_arrival - arrival_time) // 60
+                    outbound_transfer = (arrival_time // 60) - (corridor_arrival // 60)
+                    inbound_transfer = (corridor_arrival // 60) - (arrival_time // 60)
                     if is_outbound and outbound_transfer <= max_outbound_minutes and outbound_transfer >= min_outbound_minutes:
                         return True
                     if not is_outbound and inbound_transfer <= max_inbound_minutes and inbound_transfer >= min_inbound_minutes:
@@ -253,13 +284,13 @@ def get_stop_time_meeting_types(
         if not skip_outbound and has_connection(departure_time, True):
             connection_type = 'Both' if connection_type == 'Inbound' else 'Outbound'
 
-        peak_connection_type = 'None'
+        peak_connection_type = None
         if not skip_inbound and has_connection(departure_time, False, True):
             peak_connection_type = 'Inbound'
         if not skip_outbound and has_connection(departure_time, True, True):
             peak_connection_type = 'Both' if peak_connection_type == 'Inbound' else 'Outbound'
 
-        peak_connection_type = f'-{peak_connection_type}' if peak_connection_type != 'None' else ''
+        peak_connection_type = f'-{peak_connection_type}' if peak_connection_type is not None else ''
         row[get_stop_time_route_stop(row)] = connection_type + peak_connection_type
         return row
 
@@ -517,7 +548,7 @@ def output_workbook(connections, union_station_is_inbound):
 input_dict = read_config()
 stations = read_stations(input_dict['input_path'])
 location_overrides = read_location_overrides(input_dict['input_path'])
-initialize_feeds()
+initialize_feeds(date_str=input_dict.get('date'))
 station_connections = []
 for (station_name, corridors) in stations.items():
     if station_name != '':
