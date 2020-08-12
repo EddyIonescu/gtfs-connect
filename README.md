@@ -9,6 +9,6 @@ Answer questions like:
 GTFS-Connect was developed internally at Metrolinx for use in scoring the local-transit connectivity of each GO station.
 It continues to be used internally and has also been used by transit researchers at the University of Waterloo.
 
-GTFS-Connect is under active development and has a lot of hardcoded functionality. If you're interested in using or expanding GTFS-Connect at your transit agency or for your research send me an email and I'll help you get started: eddyionescu@gmail.com
+GTFS-Connect is under active development and has a lot of hardcoded functionality. If you're interested in using, modifying, or building on GTFS-Connect at your transit agency or for your research send me an email and I'll be happy to help you get started: eddyionescu@gmail.com
 
-I'm also available for consulting for larger projects, learn more about my background at [http://eddyionescu.com](http://eddyionescu.com).
+I'm also available for consulting for larger projects, you can learn more about my background at [http://eddyionescu.com](http://eddyionescu.com).
