@@ -1,5 +1,7 @@
 # gtfs-connect
-Get Connectivity Insights from GTFS, answering questions that would have required a ton of manual work combing through schedules. See output/transit_connections.xlsx to see how the output looks like.
+Get Connectivity Insights from GTFS, answering questions that would have required a ton of manual work combing through schedules. 
+
+See output/transit_connections.xlsx to see how the output looks like.
 
 Quickly answer questions like:
 - how many trips did the transit network have?
